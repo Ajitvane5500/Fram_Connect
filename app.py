@@ -158,7 +158,7 @@ def booking_status(booking_id):
         con.execute("UPDATE bookings SET status=? WHERE id=?", (status, booking_id))
     flash("Booking status updated.", "success")
     return redirect(url_for("admin"))
-
+init_db()
 @app.route("/about")
 def about():
     return render_template("about.html")

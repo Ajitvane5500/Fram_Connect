@@ -97,7 +97,6 @@ def db():
 # ------------------------------------------------------------------------------
 def init_db():
     with db() as con:
-        # Users Table
         if DATABASE_URL:
             con.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -121,7 +120,6 @@ def init_db():
                 created_at TEXT NOT NULL
             )""")
 
-        # Farmers Table
         if DATABASE_URL:
             con.execute("""
             CREATE TABLE IF NOT EXISTS farmers (
@@ -154,7 +152,6 @@ def init_db():
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )""")
 
-        # Bookings Table
         if DATABASE_URL:
             con.execute("""
             CREATE TABLE IF NOT EXISTS bookings (
@@ -186,7 +183,6 @@ def init_db():
                 FOREIGN KEY(visitor_id) REFERENCES users(id) ON DELETE SET NULL
             )""")
 
-        # Crop Guides Table
         if DATABASE_URL:
             con.execute("""
             CREATE TABLE IF NOT EXISTS crop_guides (
@@ -204,7 +200,6 @@ def init_db():
                 guidance TEXT NOT NULL
             )""")
 
-        # Initial Seed Data for Crop Guides
         count_res = con.execute("SELECT COUNT(*) AS n FROM crop_guides").fetchone()
         count = count_res["n"] if count_res else 0
         if count == 0:
@@ -218,7 +213,6 @@ def init_db():
             for g in guides:
                 con.execute("INSERT INTO crop_guides(crop,topic,guidance) VALUES(?,?,?)", g)
 
-        # Create Default Admin User if not exists
         admin = con.execute("SELECT * FROM users WHERE role='admin'").fetchone()
         if not admin:
             admin_pw = generate_password_hash("admin123")
@@ -253,7 +247,7 @@ def role_required(*roles):
     return decorator
 
 # ------------------------------------------------------------------------------
-# BASE HTML LAYOUT TEMPLATE
+# BASE HTML LAYOUT TEMPLATE & RENDER HELPER
 # ------------------------------------------------------------------------------
 BASE_LAYOUT = """
 <!DOCTYPE html>
@@ -261,7 +255,7 @@ BASE_LAYOUT = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}FarmConnect{% endblock %} - Agri Agritourism Platform</title>
+    <title>FarmConnect - Agri Agritourism Platform</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -352,7 +346,6 @@ BASE_LAYOUT = """
 </head>
 <body>
 
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top">
         <div class="container">
             <a class="navbar-brand brand-logo" href="{{ url_for('home') }}">
@@ -392,7 +385,6 @@ BASE_LAYOUT = """
         </div>
     </nav>
 
-    <!-- Flash Messages -->
     <div class="container mt-3">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -406,10 +398,8 @@ BASE_LAYOUT = """
         {% endwith %}
     </div>
 
-    <!-- Main Content -->
-    {% block content %}{% endblock %}
+    <!-- CONTENT_PLACEHOLDER -->
 
-    <!-- Footer -->
     <footer class="footer-custom">
         <div class="container text-center text-md-start">
             <div class="row">
@@ -443,9 +433,9 @@ BASE_LAYOUT = """
 </html>
 """
 
-@app.context_processor
-def inject_year():
-    return {'current_year': datetime.now().year}
+def render_page(content_html, **kwargs):
+    full_html = BASE_LAYOUT.replace("<!-- CONTENT_PLACEHOLDER -->", content_html)
+    return render_template_string(full_html, current_year=datetime.now().year, **kwargs)
 
 # ------------------------------------------------------------------------------
 # ROUTES & CONTROLLERS
@@ -465,15 +455,14 @@ def home():
         gc_res = con.execute("SELECT COUNT(*) FROM crop_guides").fetchone()
         guide_count = gc_res[list(gc_res.keys())[0]] if gc_res else 0
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <section class="hero-section text-center">
         <div class="container">
             <h1 class="display-4 fw-bold mb-3">थेट शेताचा अनुभव आणि कृषी ज्ञान</h1>
             <p class="lead mb-4 opacity-90">प्रगतीशील शेतकऱ्यांच्या शेताला भेट द्या, नवीन तंत्रज्ञान शिका आणि ॲग्रिटुरिझमचा आनंद घ्या.</p>
             <div class="d-flex justify-content-center gap-3">
-                <a href="{{ url_for('farmers') }}" class="btn btn-agri-primary btn-lg px-4"><i class="bi bi-search me-2"></i>शेताला भेट द्या</a>
-                <a href="{{ url_for('guidance') }}" class="btn btn-outline-light btn-lg px-4 rounded-3"><i class="bi bi-book me-2"></i>पीक मार्गदर्शन</a>
+                <a href=""" + f"\"{url_for('farmers')}\"" + """ class="btn btn-agri-primary btn-lg px-4"><i class="bi bi-search me-2"></i>शेताला भेट द्या</a>
+                <a href=""" + f"\"{url_for('guidance')}\"" + """ class="btn btn-outline-light btn-lg px-4 rounded-3"><i class="bi bi-book me-2"></i>पीक मार्गदर्शन</a>
             </div>
         </div>
     </section>
@@ -505,7 +494,7 @@ def home():
                 <h3 class="fw-bold mb-0 text-success"><i class="bi bi-star-fill text-warning me-2"></i>प्रमुख शेतकरी</h3>
                 <p class="text-muted small">उत्कृष्ट ॲग्रिटुरिझम आणि प्रयोगशील शेतकरी</p>
             </div>
-            <a href="{{ url_for('farmers') }}" class="btn btn-outline-success rounded-pill px-4">सर्व पहा &rarr;</a>
+            <a href=""" + f"\"{url_for('farmers')}\"" + """ class="btn btn-outline-success rounded-pill px-4">सर्व पहा &rarr;</a>
         </div>
 
         <div class="row g-4">
@@ -521,7 +510,7 @@ def home():
                         <p class="text-muted small mb-3"><i class="bi bi-award me-1"></i>अनुभव: {{ farmer.experience }} वर्षे</p>
                         <p class="card-text text-secondary small mb-3"><strong>मुख्य पिके:</strong> {{ farmer.crops }}</p>
                         <div class="pt-3 border-top">
-                            <a href="{{ url_for('book', farmer_id=farmer.id) }}" class="btn btn-agri-primary btn-sm w-100">बुकिंग करा / भेट द्या</a>
+                            <a href="/book/{{ farmer.id }}" class="btn btn-agri-primary btn-sm w-100">बुकिंग करा / भेट द्या</a>
                         </div>
                     </div>
                 </div>
@@ -533,9 +522,8 @@ def home():
             {% endfor %}
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, farmers=farmers, farmer_count=farmer_count, booking_count=booking_count, guide_count=guide_count)
+    return render_page(content, farmers=farmers, farmer_count=farmer_count, booking_count=booking_count, guide_count=guide_count)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -561,8 +549,7 @@ def login():
         else:
             flash("ईमेल किंवा पासवर्ड चुकीचा आहे.", "error")
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <div class="row justify-content-center">
             <div class="col-md-5">
@@ -584,15 +571,14 @@ def login():
                         <button type="submit" class="btn btn-agri-primary w-100 py-2 fs-6">लॉगिन</button>
                     </form>
                     <div class="text-center mt-4">
-                        <p class="small text-muted">खाते नाही? <a href="{{ url_for('register') }}" class="text-success fw-bold text-decoration-none">नवीन नोंदणी करा</a></p>
+                        <p class="small text-muted">खाते नाही? <a href=""" + f"\"{url_for('register')}\"" + """ class="text-success fw-bold text-decoration-none">नवीन नोंदणी करा</a></p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html)
+    return render_page(content)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -647,8 +633,7 @@ def register():
         except Exception as e:
             flash("हा ईमेल आयडी आधीच वापरला गेला आहे किंवा एरर आला.", "error")
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <div class="row justify-content-center">
             <div class="col-md-7">
@@ -736,9 +721,8 @@ def register():
             fields.style.display = (role === "farmer") ? "block" : "none";
         }
     </script>
-    {% endblock %}
     """
-    return render_template_string(html)
+    return render_page(content)
 
 @app.route("/logout")
 def logout():
@@ -759,8 +743,7 @@ def farmers():
         else:
             rows = con.execute("SELECT * FROM farmers ORDER BY id DESC").fetchall()
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <div class="row align-items-center mb-4">
             <div class="col-md-6">
@@ -768,7 +751,7 @@ def farmers():
                 <p class="text-muted">ॲग्रिटुरिझम आणि शेत भेटीसाठी योग्य शेतकरी शोधा</p>
             </div>
             <div class="col-md-6">
-                <form method="GET" action="{{ url_for('farmers') }}" class="d-flex gap-2">
+                <form method="GET" action=""" + f"\"{url_for('farmers')}\"" + """ class="d-flex gap-2">
                     <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="नाव, गाव, जिल्हा किंवा पीक शोधा...">
                     <button type="submit" class="btn btn-agri-primary"><i class="bi bi-search"></i></button>
                 </form>
@@ -790,7 +773,7 @@ def farmers():
                         {% if farmer.bio %}
                         <p class="small text-muted mb-4 flex-grow-1">{{ farmer.bio[:100] }}...</p>
                         {% endif %}
-                        <a href="{{ url_for('book', farmer_id=farmer.id) }}" class="btn btn-agri-primary btn-sm w-100 mt-auto">शेताला भेट बुकिंग करा</a>
+                        <a href="/book/{{ farmer.id }}" class="btn btn-agri-primary btn-sm w-100 mt-auto">शेताला भेट बुकिंग करा</a>
                     </div>
                 </div>
             </div>
@@ -802,9 +785,8 @@ def farmers():
             {% endfor %}
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, farmers=rows, q=q)
+    return render_page(content, farmers=rows, q=q)
 
 @app.route("/book/<int:farmer_id>", methods=["GET", "POST"])
 def book(farmer_id):
@@ -835,8 +817,7 @@ def book(farmer_id):
         flash("बुकिंग विनंती यशस्वीरित्या पाठवली आहे! शेतकरी तुमच्याशी संपर्क साधतील.", "success")
         return redirect(url_for("visitor_dashboard") if session.get("user_id") else url_for("farmers"))
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <div class="row justify-content-center">
             <div class="col-md-8">
@@ -876,9 +857,8 @@ def book(farmer_id):
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, farmer=farmer)
+    return render_page(content, farmer=farmer)
 
 @app.route("/guidance")
 def guidance():
@@ -889,8 +869,7 @@ def guidance():
         else:
             guides = con.execute("SELECT * FROM crop_guides ORDER BY crop").fetchall()
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <div class="row align-items-center mb-4">
             <div class="col-md-6">
@@ -898,7 +877,7 @@ def guidance():
                 <p class="text-muted">पिकांची निगा आणि आधुनिक शेती तंत्रज्ञानाची माहिती</p>
             </div>
             <div class="col-md-6">
-                <form method="GET" action="{{ url_for('guidance') }}" class="d-flex gap-2">
+                <form method="GET" action=""" + f"\"{url_for('guidance')}\"" + """ class="d-flex gap-2">
                     <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="पिकाचे नाव शोधा (उदा. Tomato, Cotton)...">
                     <button type="submit" class="btn btn-agri-primary"><i class="bi bi-search"></i></button>
                 </form>
@@ -923,14 +902,12 @@ def guidance():
             {% endfor %}
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, guides=guides, q=q)
+    return render_page(content, guides=guides, q=q)
 
 @app.route("/about")
 def about():
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <div class="row justify-content-center">
             <div class="col-md-10">
@@ -957,9 +934,8 @@ def about():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html)
+    return render_page(content)
 
 @app.route("/farmer-dashboard")
 @login_required
@@ -974,8 +950,7 @@ def farmer_dashboard():
                 SELECT * FROM bookings WHERE farmer_id=? ORDER BY id DESC
             """, (farmer["id"],)).fetchall()
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <h2 class="fw-bold text-success mb-4"><i class="bi bi-speedometer2 me-2"></i>शेतकरी डॅशबोर्ड (Farmer Dashboard)</h2>
         
@@ -1024,7 +999,7 @@ def farmer_dashboard():
                                 </span>
                             </td>
                             <td>
-                                <form method="POST" action="{{ url_for('booking_status', booking_id=b.id) }}" class="d-flex gap-1">
+                                <form method="POST" action="/booking-status/{{ b.id }}" class="d-flex gap-1">
                                     <select name="status" class="form-select form-select-sm" style="width: 120px;">
                                         <option value="Pending" {% if b.status=='Pending' %}selected{% endif %}>Pending</option>
                                         <option value="Accepted" {% if b.status=='Accepted' %}selected{% endif %}>Accepted</option>
@@ -1046,9 +1021,8 @@ def farmer_dashboard():
         <div class="alert alert-warning">तुमची शेतकरी प्रोफाईल पूर्ण केलेली नाही.</div>
         {% endif %}
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, farmer=farmer, bookings=bookings)
+    return render_page(content, farmer=farmer, bookings=bookings)
 
 @app.route("/visitor-dashboard")
 @login_required
@@ -1064,8 +1038,7 @@ def visitor_dashboard():
             ORDER BY b.id DESC
         """, (user_id,)).fetchall()
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <h2 class="fw-bold text-success mb-4"><i class="bi bi-person-badge me-2"></i>माझा डॅशबोर्ड (Visitor Dashboard)</h2>
         
@@ -1096,16 +1069,15 @@ def visitor_dashboard():
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center text-muted py-4">तुम्ही अद्याप कोणतीही भेट बुकिंग केलेली नाही. <a href="{{ url_for('farmers') }}">येथे शोधा</a>.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-4">तुम्ही अद्याप कोणतीही भेट बुकिंग केलेली नाही. <a href=""" + f"\"{url_for('farmers')}\"" + """>येथे शोधा</a>.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, bookings=bookings)
+    return render_page(content, bookings=bookings)
 
 @app.route("/admin")
 @login_required
@@ -1120,8 +1092,7 @@ def admin():
         farmers = con.execute("SELECT * FROM farmers ORDER BY id DESC").fetchall()
         users = con.execute("SELECT * FROM users ORDER BY id DESC").fetchall()
 
-    html = BASE_LAYOUT + """
-    {% block content %}
+    content = """
     <div class="container my-5">
         <h2 class="fw-bold text-success mb-4"><i class="bi bi-shield-lock me-2"></i>ॲडमिन पॅनेल (Admin Control)</h2>
 
@@ -1150,7 +1121,7 @@ def admin():
                             <td>{{ b.visit_date }}</td>
                             <td><span class="badge bg-info text-dark">{{ b.status }}</span></td>
                             <td>
-                                <form method="POST" action="{{ url_for('booking_status', booking_id=b.id) }}" class="d-flex gap-1">
+                                <form method="POST" action="/booking-status/{{ b.id }}" class="d-flex gap-1">
                                     <select name="status" class="form-select form-select-sm">
                                         <option value="Pending" {% if b.status=='Pending' %}selected{% endif %}>Pending</option>
                                         <option value="Accepted" {% if b.status=='Accepted' %}selected{% endif %}>Accepted</option>
@@ -1195,9 +1166,8 @@ def admin():
             </div>
         </div>
     </div>
-    {% endblock %}
     """
-    return render_template_string(html, bookings=bookings, farmers=farmers, users=users)
+    return render_page(content, bookings=bookings, farmers=farmers, users=users)
 
 @app.route("/booking-status/<int:booking_id>", methods=["POST"])
 @login_required

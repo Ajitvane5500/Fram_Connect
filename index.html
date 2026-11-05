@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}FarmConnect | Home{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <span class="eyebrow">SMART FARMING • LOCAL KNOWLEDGE</span>
+    <h1>Connect with farmers.<br><em>Grow with guidance.</em></h1>
+    <p>Discover experienced farmers nearby, request a farm visit, and explore practical crop-care information.</p>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('farmers') }}">Find a Farmer</a>
+      <a class="btn secondary" href="{{ url_for('register') }}">Join as Farmer</a>
+    </div>
+  </div>
+  <div class="hero-card"><div class="plant">🌾</div><h3>Local farming knowledge</h3><p>Learn directly from people with hands-on experience.</p></div>
+</section>
+<section class="stats">
+  <div><strong>{{ farmer_count }}</strong><span>Registered farmers</span></div>
+  <div><strong>{{ booking_count }}</strong><span>Visit requests</span></div>
+  <div><strong>24/7</strong><span>Browse information</span></div>
+</section>
+<div class="section-head"><div><span class="eyebrow">COMMUNITY</span><h2>Recently added farmers</h2></div><a href="{{ url_for('farmers') }}">View all →</a></div>
+<div class="grid">
+{% for f in farmers %}
+  <article class="card">
+    <div class="avatar">👨‍🌾</div><h3>{{ f.name }}</h3>
+    <p>📍 {{ f.village }}, {{ f.district }}</p><p>🌱 {{ f.crops }}</p>
+    <a class="text-link" href="{{ url_for('book', farmer_id=f.id) }}">Request a visit →</a>
+  </article>
+{% else %}
+  <div class="empty">No farmer profiles yet. Be the first to register.</div>
+{% endfor %}
+</div>
+{% endblock %}

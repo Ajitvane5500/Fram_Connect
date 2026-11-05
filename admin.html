@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | FarmConnect{% endblock %}
+{% block content %}
+<div class="page-title"><span class="eyebrow">MANAGEMENT</span><h1>Admin dashboard</h1><p>Prototype view of farmer profiles and visitor requests.</p></div>
+<h2>Booking requests</h2>
+<div class="table-wrap"><table><thead><tr><th>Visitor</th><th>Farmer</th><th>Visit date</th><th>Location</th><th>Status</th><th>Update</th></tr></thead><tbody>
+{% for b in bookings %}<tr><td>{{ b.visitor_name }}<br><small>{{ b.visitor_phone }}</small></td><td>{{ b.farmer_name }}</td><td>{{ b.visit_date }}</td><td>{{ b.village }}, {{ b.district }}</td><td><span class="tag">{{ b.status }}</span></td><td><form method="post" action="{{ url_for('booking_status', booking_id=b.id) }}" class="inline"><select name="status"><option>Pending</option><option>Accepted</option><option>Completed</option><option>Cancelled</option></select><button class="btn tiny">Save</button></form></td></tr>
+{% else %}<tr><td colspan="6">No booking requests yet.</td></tr>{% endfor %}
+</tbody></table></div>
+<h2 class="spaced">Registered farmers ({{ farmers|length }})</h2>
+<div class="grid">{% for f in farmers %}<article class="card"><h3>{{ f.name }}</h3><p>{{ f.village }}, {{ f.district }}</p><p>{{ f.crops }}</p></article>{% else %}<div class="empty">No farmers registered.</div>{% endfor %}</div>
+<div class="notice">Security: this demo admin page is not password-protected. Do not publish it as-is or store real personal data.</div>
+{% endblock %}

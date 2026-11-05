@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Find Farmers | FarmConnect{% endblock %}
+{% block content %}
+<div class="page-title"><span class="eyebrow">FARMER DIRECTORY</span><h1>Find farming guides</h1><p>Search by farmer name, village, district or crop.</p></div>
+<form class="search" method="get"><input name="q" value="{{ q }}" placeholder="Example: Loni, tomato, Pune"><button class="btn">Search</button></form>
+<div class="grid">
+{% for f in farmers %}
+<article class="card">
+  <div class="avatar">👨‍🌾</div><h3>{{ f.name }}</h3>
+  <p>📍 {{ f.village }}, {{ f.district }}</p><p>🌱 {{ f.crops }}</p>
+  <p>Experience: {{ f.experience }} years</p><p>Consultation fee: ₹{{ '%.0f'|format(f.fee) }}</p>
+  <p class="muted">{{ f.bio }}</p>
+  <a class="btn small" href="{{ url_for('book', farmer_id=f.id) }}">Request a visit</a>
+</article>
+{% else %}<div class="empty">No matching farmers found. Try another search or register a farmer.</div>{% endfor %}
+</div>
+{% endblock %}

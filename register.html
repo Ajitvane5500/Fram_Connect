@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Register Farmer | FarmConnect{% endblock %}
+{% block content %}
+<div class="form-wrap"><span class="eyebrow">JOIN THE COMMUNITY</span><h1>Farmer registration</h1><p>Add your farm details so visitors can discover and contact you.</p>
+<form method="post" class="form-card">
+<label>Full name *<input name="name" required></label>
+<label>Phone number *<input name="phone" required inputmode="tel"></label>
+<div class="two"><label>Village / town *<input name="village" required></label><label>District *<input name="district" required></label></div>
+<label>Main crops *<input name="crops" placeholder="e.g. Tomato, onion, soybean" required></label>
+<div class="two"><label>Farming experience (years)<input type="number" min="0" name="experience" value="0"></label><label>Consultation fee (₹)<input type="number" min="0" step="1" name="fee" value="0"></label></div>
+<label>About your farm<textarea name="bio" rows="4" placeholder="Describe your farming experience and what visitors can learn."></textarea></label>
+<button class="btn">Create farmer profile</button>
+<p class="hint">Your phone number is collected for this prototype. Add privacy consent and secure contact controls before public launch.</p>
+</form></div>
+{% endblock %}

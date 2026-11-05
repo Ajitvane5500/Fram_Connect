@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Book a Visit | FarmConnect{% endblock %}
+{% block content %}
+<div class="form-wrap"><span class="eyebrow">FARM VISIT REQUEST</span><h1>Connect with {{ farmer.name }}</h1>
+<div class="summary"><b>📍 {{ farmer.village }}, {{ farmer.district }}</b><span>🌱 {{ farmer.crops }}</span><span>Indicative consultation fee: ₹{{ '%.0f'|format(farmer.fee) }}</span></div>
+<form method="post" class="form-card">
+<label>Your name *<input name="visitor_name" required></label>
+<label>Phone number *<input name="visitor_phone" required inputmode="tel"></label>
+<label>Preferred visit date *<input type="date" name="visit_date" required></label>
+<label>What would you like to learn?<textarea name="message" rows="4" placeholder="e.g. tomato cultivation, irrigation, farm management"></textarea></label>
+<button class="btn">Submit booking request</button>
+<p class="hint">Demo only: this submits a request; it does not collect money or confirm the visit. Agree on the final fee and visit details directly with the farmer.</p>
+</form></div>
+{% endblock %}

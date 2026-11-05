@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Crop Guidance | FarmConnect{% endblock %}
+{% block content %}
+<div class="page-title"><span class="eyebrow">LEARN & GROW</span><h1>Basic crop guidance</h1><p>General educational tips. Local conditions and soil tests matter.</p></div>
+<form class="search" method="get"><input name="q" value="{{ q }}" placeholder="Search a crop, e.g. tomato"><button class="btn">Search</button></form>
+<div class="grid">
+{% for g in guides %}<article class="card guide"><span class="tag">CROP GUIDE</span><h3>{{ g.crop }}</h3><h4>{{ g.topic }}</h4><p>{{ g.guidance }}</p></article>{% else %}<div class="empty">No guide found. Try another crop.</div>{% endfor %}
+</div>
+<div class="notice"><b>Safety note:</b> This prototype does not prescribe medicines or pesticide dosages. For crop disease diagnosis and chemical use, consult your local Krishi Vigyan Kendra (KVK) or qualified agricultural officer and follow the product label.</div>
+{% endblock %}

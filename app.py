@@ -363,7 +363,7 @@ BASE_LAYOUT = """
                     
                     {% if session.get('user_id') %}
                         {% if session.get('role') == 'admin' %}
-                            <li class="nav-item"><a class="nav-link fw-bold text-warning" href="{{ url_for('admin') }}"><i class="bi bi-speedometer2"></i> Admin Panel</a></li>
+                            <li class="nav-item"><a class="nav-link fw-bold text-warning" href="{{ url_for('admin') }}"><i class="bi bi-shield-lock-fill me-1"></i> Admin Panel</a></li>
                         {% elif session.get('role') == 'farmer' %}
                             <li class="nav-item"><a class="nav-link fw-bold text-warning" href="{{ url_for('farmer_dashboard') }}"><i class="bi bi-speedometer2"></i> Farmer Dashboard</a></li>
                         {% else %}
@@ -468,6 +468,36 @@ def home():
     </section>
 
     <div class="container my-5">
+        {% if session.get('role') == 'admin' %}
+        <!-- ADMIN DASHBOARD WIDGET ON HOMEPAGE -->
+        <div class="card card-custom p-4 mb-5 border border-success border-2 bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold text-success mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Admin Overview (Quick Control)</h4>
+                <a href=""" + f"\"{url_for('admin')}\"" + """ class="btn btn-agri-primary btn-sm"><i class="bi bi-gear-fill me-1"></i>Open Full Admin Panel</a>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="p-3 bg-white rounded shadow-sm text-center">
+                        <span class="text-muted small fw-semibold">Total Farmers</span>
+                        <h3 class="fw-bold text-dark mb-0">{{ farmer_count }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 bg-white rounded shadow-sm text-center">
+                        <span class="text-muted small fw-semibold">Total Bookings</span>
+                        <h3 class="fw-bold text-dark mb-0">{{ booking_count }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 bg-white rounded shadow-sm text-center">
+                        <span class="text-muted small fw-semibold">System Status</span>
+                        <h3 class="fw-bold text-success mb-0"><i class="bi bi-check-circle-fill"></i> Active</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="row g-4 text-center mb-5">
             <div class="col-md-4">
                 <div class="card card-custom p-4">

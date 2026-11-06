@@ -562,3 +562,657 @@ def home():
 def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()
+
+        with db() as con:
+            user = con.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+
+        if user and check_password_hash(user["password"], password):
+            session["user_id"] = user["id"]
+            session["user_name"] = user["name"]
+            session["role"] = user["role"]
+            flash(f"Welcome back, {user['name']}!", "success")
+            
+            if user["role"] == "admin":
+                return redirect(url_for("admin"))
+            elif user["role"] == "farmer":
+                return redirect(url_for("farmer_dashboard"))
+            else:
+                return redirect(url_for("visitor_dashboard"))
+        else:
+            flash("Invalid email or password.", "error")
+
+    content = """
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="card card-custom p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-person-circle display-4 text-success"></i>
+                        <h3 class="fw-bold mt-2">Account Login</h3>
+                        <p class="text-muted small">Access your FarmConnect account</p>
+                    </div>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Email Address</label>
+                            <input type="email" name="email" class="form-control form-control-lg fs-6" required placeholder="example@mail.com">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Password</label>
+                            <input type="password" name="password" class="form-control form-control-lg fs-6" required placeholder="••••••••">
+                        </div>
+                        <button type="submit" class="btn btn-agri-primary w-100 py-2 fs-6">Login</button>
+                    </form>
+                    <div class="text-center mt-4">
+                        <p class="small text-muted">Don't have an account? <a href=""" + f"\"{url_for('register')}\"" + """ class="text-success fw-bold text-decoration-none">Register Now</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return render_page(content)
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "").strip()
+        role = request.form.get("role", "visitor").strip()
+
+        village = request.form.get("village", "").strip()
+        district = request.form.get("district", "").strip()
+        crops = request.form.get("crops", "").strip()
+        experience = request.form.get("experience", 0)
+        fee = request.form.get("fee", 0)
+        bio = request.form.get("bio", "").strip()
+
+        if not name or not email or not phone or not password:
+            flash("Please fill in all required fields.", "error")
+            return redirect(url_for("register"))
+
+        if role == "farmer" and (not village or not district or not crops):
+            flash("Village, district, and main crops are required for farmer registration.", "error")
+            return redirect(url_for("register"))
+
+        hashed_pw = generate_password_hash(password)
+
+        try:
+            with db() as con:
+                if DATABASE_URL:
+                    con.execute("""
+                        INSERT INTO users (name, email, phone, password, role, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+                    """, (name, email, phone, hashed_pw, role, datetime.now().isoformat(timespec="minutes")))
+                    user_row = con.fetchone()
+                    user_id = user_row["id"] if user_row else None
+                else:
+                    con.execute("""
+                        INSERT INTO users (name, email, phone, password, role, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (name, email, phone, hashed_pw, role, datetime.now().isoformat(timespec="minutes")))
+                    user_id = con.lastrowid
+
+                if role == "farmer" and user_id:
+                    con.execute("""
+                        INSERT INTO farmers (user_id, name, phone, village, district, crops, experience, fee, bio, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (user_id, name, phone, village, district, crops, experience, fee, bio, datetime.now().isoformat(timespec="minutes")))
+
+            flash("Registration successful! Please login to your account.", "success")
+            return redirect(url_for("login"))
+        except Exception as e:
+            flash("This email address is already registered.", "error")
+
+    content = """
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-md-7">
+                <div class="card card-custom p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-person-plus-fill display-4 text-success"></i>
+                        <h3 class="fw-bold mt-2">Create an Account</h3>
+                        <p class="text-muted small">Join FarmConnect as a Visitor or Progressive Farmer</p>
+                    </div>
+
+                    <form method="POST">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Full Name *</label>
+                                <input type="text" name="name" class="form-control" required placeholder="e.g. John Doe">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Phone Number *</label>
+                                <input type="tel" name="phone" class="form-control" required placeholder="9876543210">
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Email *</label>
+                                <input type="email" name="email" class="form-control" required placeholder="name@example.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Password *</label>
+                                <input type="password" name="password" class="form-control" required placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Register As *</label>
+                            <select name="role" id="roleSelect" class="form-select form-select-lg fs-6" onchange="toggleFarmerFields()">
+                                <option value="visitor">Visitor / Agritourist</option>
+                                <option value="farmer">Progressive Farmer</option>
+                            </select>
+                        </div>
+
+                        <div id="farmerFields" style="display: none;" class="p-3 bg-light rounded-3 mb-4 border">
+                            <h6 class="fw-bold text-success mb-3"><i class="bi bi-geo-alt-fill me-1"></i>Farm Details</h6>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Village *</label>
+                                    <input type="text" name="village" class="form-control" placeholder="e.g. Rahuri">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">District *</label>
+                                    <input type="text" name="district" class="form-control" placeholder="e.g. Ahilyanagar">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Main Crops *</label>
+                                <input type="text" name="crops" class="form-control" placeholder="e.g. Onion, Sugarcane, Tomato">
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Farming Experience (Years)</label>
+                                    <input type="number" name="experience" class="form-control" value="0">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Consultation / Visit Fee (₹)</label>
+                                    <input type="number" name="fee" class="form-control" value="0">
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label fw-semibold">Farm Description (Bio)</label>
+                                <textarea name="bio" class="form-control" rows="2" placeholder="Briefly describe your farm, techniques, or tourism attraction..."></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-agri-primary w-100 py-2 fs-6">Create Account</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleFarmerFields() {
+            var role = document.getElementById("roleSelect").value;
+            var fields = document.getElementById("farmerFields");
+            fields.style.display = (role === "farmer") ? "block" : "none";
+        }
+    </script>
+    """
+    return render_page(content)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("You have been logged out successfully.", "info")
+    return redirect(url_for("login"))
+
+@app.route("/farmers")
+def farmers():
+    q = request.args.get("q", "").strip()
+    with db() as con:
+        if q:
+            rows = con.execute("""
+                SELECT * FROM farmers
+                WHERE name LIKE ? OR village LIKE ? OR district LIKE ? OR crops LIKE ?
+                ORDER BY id DESC
+            """, tuple([f"%{q}%"] * 4)).fetchall()
+        else:
+            rows = con.execute("SELECT * FROM farmers ORDER BY id DESC").fetchall()
+
+    content = """
+    <div class="container my-5">
+        <div class="row align-items-center mb-4">
+            <div class="col-md-6">
+                <h2 class="fw-bold text-success mb-1"><i class="bi bi-people-fill me-2"></i>Registered Farmers</h2>
+                <p class="text-muted">Find progressive farmers for farm visits and agritourism</p>
+            </div>
+            <div class="col-md-6">
+                <form method="GET" action=""" + f"\"{url_for('farmers')}\"" + """ class="d-flex gap-2">
+                    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search by name, village, district, or crop...">
+                    <button type="submit" class="btn btn-agri-primary"><i class="bi bi-search"></i></button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            {% for farmer in farmers %}
+            <div class="col-md-4">
+                <div class="card card-custom h-100">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <span class="badge badge-agri"><i class="bi bi-geo-alt-fill me-1"></i>{{ farmer.village }}, {{ farmer.district }}</span>
+                            <span class="fw-bold text-success">₹{{ farmer.fee }} / visit</span>
+                        </div>
+                        <h5 class="fw-bold mb-1">{{ farmer.name }}</h5>
+                        <p class="text-muted small mb-2"><i class="bi bi-award me-1"></i>Experience: {{ farmer.experience }} Years</p>
+                        <p class="small text-secondary mb-3"><strong>Crops:</strong> {{ farmer.crops }}</p>
+                        {% if farmer.bio %}
+                        <p class="small text-muted mb-4 flex-grow-1">{{ farmer.bio[:100] }}...</p>
+                        {% endif %}
+                        <a href="/book/{{ farmer.id }}" class="btn btn-agri-primary btn-sm w-100 mt-auto">Book Farm Visit</a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-emoji-frown display-4 text-muted"></i>
+                <p class="text-muted mt-2">No farmers found matching your search.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    """
+    return render_page(content, farmers=rows, q=q)
+
+@app.route("/book/<int:farmer_id>", methods=["GET", "POST"])
+def book(farmer_id):
+    with db() as con:
+        farmer = con.execute("SELECT * FROM farmers WHERE id=?", (farmer_id,)).fetchone()
+
+    if not farmer:
+        flash("Farmer not found.", "error")
+        return redirect(url_for("farmers"))
+
+    if request.method == "POST":
+        visitor_name = request.form.get("visitor_name", "").strip()
+        visitor_phone = request.form.get("visitor_phone", "").strip()
+        visit_date = request.form.get("visit_date", "").strip()
+        message = request.form.get("message", "").strip()
+        visitor_id = session.get("user_id")
+
+        if not visitor_name or not visitor_phone or not visit_date:
+            flash("Please fill in all required fields.", "error")
+            return redirect(url_for("book", farmer_id=farmer_id))
+
+        with db() as con:
+            con.execute("""
+                INSERT INTO bookings(farmer_id, visitor_id, visitor_name, visitor_phone, visit_date, message, created_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?)
+            """, (farmer_id, visitor_id, visitor_name, visitor_phone, visit_date, message, datetime.now().isoformat(timespec="minutes")))
+
+        flash("Booking request submitted successfully! The farmer will contact you soon.", "success")
+        return redirect(url_for("visitor_dashboard") if session.get("user_id") else url_for("farmers"))
+
+    content = """
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card card-custom p-4 p-md-5">
+                    <h3 class="fw-bold text-success mb-4"><i class="bi bi-calendar-check me-2"></i>Book Farm Visit</h3>
+                    
+                    <div class="bg-light p-3 rounded-3 mb-4">
+                        <h5 class="fw-bold text-dark mb-1">{{ farmer.name }}</h5>
+                        <p class="text-muted small mb-0"><i class="bi bi-geo-alt me-1"></i>{{ farmer.village }}, {{ farmer.district }} | <strong>Fee:</strong> ₹{{ farmer.fee }}</p>
+                    </div>
+
+                    <form method="POST">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Your Name *</label>
+                                <input type="text" name="visitor_name" class="form-control" required value="{{ session.get('user_name', '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Phone Number *</label>
+                                <input type="tel" name="visitor_phone" class="form-control" required placeholder="9876543210">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Date of Visit *</label>
+                            <input type="date" name="visit_date" class="form-control" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Message / Purpose (Optional)</label>
+                            <textarea name="message" class="form-control" rows="3" placeholder="Mention the purpose of your visit or any specific questions..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-agri-primary w-100 py-2 fs-6">Confirm Booking</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return render_page(content, farmer=farmer)
+
+@app.route("/guidance")
+def guidance():
+    q = request.args.get("q", "").strip()
+    with db() as con:
+        if q:
+            guides = con.execute("SELECT * FROM crop_guides WHERE crop LIKE ? OR topic LIKE ?", (f"%{q}%", f"%{q}%")).fetchall()
+        else:
+            guides = con.execute("SELECT * FROM crop_guides ORDER BY crop").fetchall()
+
+    content = """
+    <div class="container my-5">
+        <div class="row align-items-center mb-4">
+            <div class="col-md-6">
+                <h2 class="fw-bold text-success mb-1"><i class="bi bi-book-half me-2"></i>Crop Advisory & Guidance</h2>
+                <p class="text-muted">Expert advice on crop care, pest management, and modern techniques</p>
+            </div>
+            <div class="col-md-6">
+                <form method="GET" action=""" + f"\"{url_for('guidance')}\"" + """ class="d-flex gap-2">
+                    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search crop or topic (e.g., Tomato, Cotton)...">
+                    <button type="submit" class="btn btn-agri-primary"><i class="bi bi-search"></i></button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            {% for guide in guides %}
+            <div class="col-md-6">
+                <div class="card card-custom h-100">
+                    <div class="card-body p-4">
+                        <span class="badge badge-agri mb-2">{{ guide.crop }}</span>
+                        <h5 class="fw-bold text-dark mb-2">{{ guide.topic }}</h5>
+                        <p class="text-secondary mb-0" style="line-height: 1.6;">{{ guide.guidance }}</p>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-5">
+                <p class="text-muted">No crop guidance records found.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    """
+    return render_page(content, guides=guides, q=q)
+
+@app.route("/about")
+def about():
+    content = """
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card card-custom p-4 p-md-5">
+                    <h2 class="fw-bold text-success mb-3"><i class="bi bi-info-circle me-2"></i>About FarmConnect</h2>
+                    <p class="lead text-secondary">FarmConnect is a modern digital platform designed to connect farmers, agricultural researchers, and tourists directly.</p>
+                    <hr class="my-4">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <h5 class="fw-bold text-dark"><i class="bi bi-bullseye text-success me-2"></i>Our Mission</h5>
+                            <p class="text-muted">Empowering rural farmers by highlighting their innovation and giving tourists an authentic, educational agritourism experience.</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-2"></i>Key Features</h5>
+                            <ul class="text-muted">
+                                <li>Direct farm visits and real-world learning</li>
+                                <li>Transparent booking system</li>
+                                <li>Modern crop advisories and technology guidance</li>
+                                <li>User-friendly and secure platform</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return render_page(content)
+
+@app.route("/farmer-dashboard")
+@login_required
+@role_required("farmer")
+def farmer_dashboard():
+    user_id = session.get("user_id")
+    with db() as con:
+        farmer = con.execute("SELECT * FROM farmers WHERE user_id=?", (user_id,)).fetchone()
+        bookings = []
+        if farmer:
+            bookings = con.execute("""
+                SELECT * FROM bookings WHERE farmer_id=? ORDER BY id DESC
+            """, (farmer["id"],)).fetchall()
+
+    content = """
+    <div class="container my-5">
+        <h2 class="fw-bold text-success mb-4"><i class="bi bi-speedometer2 me-2"></i>Farmer Dashboard</h2>
+        
+        {% if farmer %}
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card card-custom p-4">
+                    <h6 class="text-muted fw-bold">Your Profile</h6>
+                    <h4 class="fw-bold text-dark mb-1">{{ farmer.name }}</h4>
+                    <p class="small text-muted mb-0"><i class="bi bi-geo-alt"></i> {{ farmer.village }}, {{ farmer.district }}</p>
+                    <p class="small text-muted mb-0"><i class="bi bi-journal-text"></i> Crops: {{ farmer.crops }}</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-custom p-4 text-center">
+                    <h6 class="text-muted fw-bold">Total Bookings</h6>
+                    <h2 class="display-6 fw-bold text-success mb-0">{{ bookings|length }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <h4 class="fw-bold text-dark mb-3">Farm Visit Booking Requests</h4>
+        <div class="card card-custom p-3">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Visitor Name</th>
+                            <th>Phone Number</th>
+                            <th>Visit Date</th>
+                            <th>Message</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bookings %}
+                        <tr>
+                            <td class="fw-semibold">{{ b.visitor_name }}</td>
+                            <td>{{ b.visitor_phone }}</td>
+                            <td>{{ b.visit_date }}</td>
+                            <td class="small text-muted">{{ b.message or '-' }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'warning' if b.status == 'Pending' else ('success' if b.status == 'Accepted' else 'secondary') }}">
+                                    {{ b.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <form method="POST" action="/booking-status/{{ b.id }}" class="d-flex gap-1">
+                                    <select name="status" class="form-select form-select-sm" style="width: 120px;">
+                                        <option value="Pending" {% if b.status=='Pending' %}selected{% endif %}>Pending</option>
+                                        <option value="Accepted" {% if b.status=='Accepted' %}selected{% endif %}>Accepted</option>
+                                        <option value="Completed" {% if b.status=='Completed' %}selected{% endif %}>Completed</option>
+                                        <option value="Cancelled" {% if b.status=='Cancelled' %}selected{% endif %}>Cancelled</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-agri-primary">Update</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-4">No booking requests received yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">Your farmer profile is incomplete.</div>
+        {% endif %}
+    </div>
+    """
+    return render_page(content, farmer=farmer, bookings=bookings)
+
+@app.route("/visitor-dashboard")
+@login_required
+@role_required("visitor")
+def visitor_dashboard():
+    user_id = session.get("user_id")
+    with db() as con:
+        bookings = con.execute("""
+            SELECT b.*, f.name AS farmer_name, f.village, f.district
+            FROM bookings b
+            JOIN farmers f ON f.id = b.farmer_id
+            WHERE b.visitor_id=?
+            ORDER BY b.id DESC
+        """, (user_id,)).fetchall()
+
+    content = """
+    <div class="container my-5">
+        <h2 class="fw-bold text-success mb-4"><i class="bi bi-person-badge me-2"></i>Visitor Dashboard</h2>
+        
+        <h4 class="fw-bold text-dark mb-3">My Farm Visit Bookings</h4>
+        <div class="card card-custom p-3">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Farmer Name</th>
+                            <th>Location</th>
+                            <th>Visit Date</th>
+                            <th>Payment Status</th>
+                            <th>Booking Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bookings %}
+                        <tr>
+                            <td class="fw-semibold">{{ b.farmer_name }}</td>
+                            <td>{{ b.village }}, {{ b.district }}</td>
+                            <td>{{ b.visit_date }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ b.payment_status }}</span></td>
+                            <td>
+                                <span class="badge bg-{{ 'warning' if b.status == 'Pending' else ('success' if b.status == 'Accepted' else 'secondary') }}">
+                                    {{ b.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">You have not booked any farm visits yet. <a href=""" + f"\"{url_for('farmers')}\"" + """>Search Farmers</a>.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    """
+    return render_page(content, bookings=bookings)
+
+@app.route("/admin")
+@login_required
+@role_required("admin")
+def admin():
+    with db() as con:
+        bookings = con.execute("""
+            SELECT b.*, f.name AS farmer_name, f.village, f.district, f.fee
+            FROM bookings b JOIN farmers f ON f.id=b.farmer_id
+            ORDER BY b.id DESC
+        """).fetchall()
+        farmers = con.execute("SELECT * FROM farmers ORDER BY id DESC").fetchall()
+        users = con.execute("SELECT * FROM users ORDER BY id DESC").fetchall()
+
+    content = """
+    <div class="container my-5">
+        <h2 class="fw-bold text-success mb-4"><i class="bi bi-shield-lock me-2"></i>Admin Panel Control</h2>
+
+        <h4 class="fw-bold text-dark mb-3">All System Bookings</h4>
+        <div class="card card-custom p-3 mb-5">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#ID</th>
+                            <th>Farmer</th>
+                            <th>Visitor</th>
+                            <th>Phone</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bookings %}
+                        <tr>
+                            <td>#{{ b.id }}</td>
+                            <td class="fw-semibold">{{ b.farmer_name }}</td>
+                            <td>{{ b.visitor_name }}</td>
+                            <td>{{ b.visitor_phone }}</td>
+                            <td>{{ b.visit_date }}</td>
+                            <td><span class="badge bg-info text-dark">{{ b.status }}</span></td>
+                            <td>
+                                <form method="POST" action="/booking-status/{{ b.id }}" class="d-flex gap-1">
+                                    <select name="status" class="form-select form-select-sm">
+                                        <option value="Pending" {% if b.status=='Pending' %}selected{% endif %}>Pending</option>
+                                        <option value="Accepted" {% if b.status=='Accepted' %}selected{% endif %}>Accepted</option>
+                                        <option value="Completed" {% if b.status=='Completed' %}selected{% endif %}>Completed</option>
+                                        <option value="Cancelled" {% if b.status=='Cancelled' %}selected{% endif %}>Cancelled</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-agri-primary">Update</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <h4 class="fw-bold text-dark mb-3">Registered Farmers List</h4>
+        <div class="card card-custom p-3">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Location</th>
+                            <th>Crops</th>
+                            <th>Fee</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in farmers %}
+                        <tr>
+                            <td class="fw-semibold">{{ f.name }}</td>
+                            <td>{{ f.phone }}</td>
+                            <td>{{ f.village }}, {{ f.district }}</td>
+                            <td>{{ f.crops }}</td>
+                            <td>₹{{ f.fee }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    """
+    return render_page(content, bookings=bookings, farmers=farmers, users=users)
+
+@app.route("/booking-status/<int:booking_id>", methods=["POST"])
+@login_required
+def booking_status(booking_id):
+    status = request.form.get("status", "Pending")
+    if status not in ("Pending", "Accepted", "Completed", "Cancelled"):
+        status = "Pending"
+    with db() as con:
+        con.execute("UPDATE bookings SET status=? WHERE id=?", (status, booking_id))
+    flash("Booking status updated successfully.", "success")
+    return redirect(request.referrer or url_for("home"))
+
+if __name__ == "__main__":
+    init_db()
+    app.run(debug=True, host="0.0.0.0", port=5000)

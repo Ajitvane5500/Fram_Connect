@@ -9,7 +9,6 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# PostgreSQL support check
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     import psycopg2
@@ -21,9 +20,6 @@ app = Flask(__name__)
 app.secret_key = "farmconnect-super-secret-key-change-in-production"
 DB_PATH = Path(__file__).with_name("farmconnect.db")
 
-# ------------------------------------------------------------------------------
-# DATABASE CONNECTION HELPER (Supports both SQLite & PostgreSQL)
-# ------------------------------------------------------------------------------
 class DictRow(dict):
     def __getattr__(self, key):
         try:
@@ -92,9 +88,6 @@ class DatabaseConnection:
 def db():
     return DatabaseConnection()
 
-# ------------------------------------------------------------------------------
-# DATABASE SETUP & MIGRATION
-# ------------------------------------------------------------------------------
 def init_db():
     with db() as con:
         if DATABASE_URL:
@@ -108,19 +101,6 @@ def init_db():
                 role TEXT NOT NULL DEFAULT 'visitor',
                 created_at TEXT NOT NULL
             )""")
-        else:
-            con.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                phone TEXT NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'visitor',
-                created_at TEXT NOT NULL
-            )""")
-
-        if DATABASE_URL:
             con.execute("""
             CREATE TABLE IF NOT EXISTS farmers (
                 id SERIAL PRIMARY KEY,
@@ -130,29 +110,12 @@ def init_db():
                 village TEXT NOT NULL,
                 district TEXT NOT NULL,
                 crops TEXT NOT NULL,
+                acres REAL DEFAULT 0,
                 experience INTEGER DEFAULT 0,
                 fee REAL DEFAULT 0,
                 bio TEXT DEFAULT '',
                 created_at TEXT NOT NULL
             )""")
-        else:
-            con.execute("""
-            CREATE TABLE IF NOT EXISTS farmers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER UNIQUE,
-                name TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                village TEXT NOT NULL,
-                district TEXT NOT NULL,
-                crops TEXT NOT NULL,
-                experience INTEGER DEFAULT 0,
-                fee REAL DEFAULT 0,
-                bio TEXT DEFAULT '',
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )""")
-
-        if DATABASE_URL:
             con.execute("""
             CREATE TABLE IF NOT EXISTS bookings (
                 id SERIAL PRIMARY KEY,
@@ -166,7 +129,40 @@ def init_db():
                 status TEXT DEFAULT 'Pending',
                 created_at TEXT NOT NULL
             )""")
+            con.execute("""
+            CREATE TABLE IF NOT EXISTS crop_guides (
+                id SERIAL PRIMARY KEY,
+                crop TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                guidance TEXT NOT NULL
+            )""")
         else:
+            con.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                phone TEXT NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'visitor',
+                created_at TEXT NOT NULL
+            )""")
+            con.execute("""
+            CREATE TABLE IF NOT EXISTS farmers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER UNIQUE,
+                name TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                village TEXT NOT NULL,
+                district TEXT NOT NULL,
+                crops TEXT NOT NULL,
+                acres REAL DEFAULT 0,
+                experience INTEGER DEFAULT 0,
+                fee REAL DEFAULT 0,
+                bio TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )""")
             con.execute("""
             CREATE TABLE IF NOT EXISTS bookings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,16 +178,6 @@ def init_db():
                 FOREIGN KEY(farmer_id) REFERENCES farmers(id) ON DELETE CASCADE,
                 FOREIGN KEY(visitor_id) REFERENCES users(id) ON DELETE SET NULL
             )""")
-
-        if DATABASE_URL:
-            con.execute("""
-            CREATE TABLE IF NOT EXISTS crop_guides (
-                id SERIAL PRIMARY KEY,
-                crop TEXT NOT NULL,
-                topic TEXT NOT NULL,
-                guidance TEXT NOT NULL
-            )""")
-        else:
             con.execute("""
             CREATE TABLE IF NOT EXISTS crop_guides (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -204,6 +190,8 @@ def init_db():
         count = count_res["n"] if count_res else 0
         if count == 0:
             guides = [
+                ("Pomegranate", "Fruit Cracking & Management", "Maintain uniform soil moisture to avoid fruit cracking. Apply balanced micronutrients (Boron and Calcium) during fruit development stages to enhance fruit skin quality and prevent disorders."),
+                ("Grapes", "Canopy Management & Downy Mildew", "Ensure proper shoot thinning and timely pinching for optimal sunlight penetration and air circulation. Apply preventive copper-based fungicides during humid weather to protect against Downy Mildew."),
                 ("Tomato", "General Care & Disease Management", "Use certified seedlings, maintain 60x45cm spacing, install drip irrigation to avoid leaf wetness, and apply Neem oil preventive spray for leaf miners."),
                 ("Cotton", "Nutrient & Pest Control", "Apply balanced NPK according to soil testing. Monitor regularly for sucking pests (Thrips, Aphids) and set up pheromone traps for pink bollworm."),
                 ("Onion", "Irrigation & Harvest Care", "Provide light, frequent irrigation during bulb development. Stop watering 10-15 days before harvesting for better shelf life and storage quality."),
@@ -215,17 +203,14 @@ def init_db():
 
         admin = con.execute("SELECT * FROM users WHERE role='admin'").fetchone()
         if not admin:
-            admin_pw = generate_password_hash("admin123")
+            admin_pw = generate_password_hash("Shubham@2000")
             con.execute("""
                 INSERT INTO users (name, email, phone, password, role, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, ("System Admin", "admin@farmconnect.com", "9999999999", admin_pw, "admin", datetime.now().isoformat(timespec="minutes")))
+            """, ("Shubham Kharde Patil", "admin@farmconnect.com", "9552365787", admin_pw, "admin", datetime.now().isoformat(timespec="minutes")))
 
 init_db()
 
-# ------------------------------------------------------------------------------
-# AUTH DECORATORS
-# ------------------------------------------------------------------------------
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -246,9 +231,6 @@ def role_required(*roles):
         return decorated_function
     return decorator
 
-# ------------------------------------------------------------------------------
-# BASE HTML LAYOUT TEMPLATE & RENDER HELPER
-# ------------------------------------------------------------------------------
 BASE_LAYOUT = """
 <!DOCTYPE html>
 <html lang="en">
@@ -319,10 +301,6 @@ BASE_LAYOUT = """
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
             transition: all 0.3s ease;
         }
-        .card-custom:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-        }
         .hero-section {
             background: linear-gradient(135deg, rgba(12, 35, 28, 0.88), rgba(27, 77, 62, 0.85)), url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1600&q=80') center/cover;
             color: white;
@@ -379,9 +357,6 @@ BASE_LAYOUT = """
                         <li class="nav-item me-2">
                             <a class="btn btn-agri-primary text-white" href="{{ url_for('register') }}">Register</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="btn btn-outline-warning btn-sm px-3 rounded-pill" href="{{ url_for('login') }}"><i class="bi bi-shield-lock-fill me-1"></i> Admin</a>
-                        </li>
                     {% endif %}
                 </ul>
             </div>
@@ -401,7 +376,7 @@ BASE_LAYOUT = """
         {% endwith %}
     </div>
 
-    <!-- CONTENT_PLACEHOLDER -->
+    {% block content %}{% endblock %}
 
     <footer class="footer-custom">
         <div class="container text-center text-md-start">
@@ -416,17 +391,19 @@ BASE_LAYOUT = """
                         <li><a href="{{ url_for('farmers') }}" class="text-muted text-decoration-none">Explore Farmers</a></li>
                         <li><a href="{{ url_for('guidance') }}" class="text-muted text-decoration-none">Crop Guidance</a></li>
                         <li><a href="{{ url_for('register') }}" class="text-muted text-decoration-none">Register Farm</a></li>
+                        <li><a href="https://www.instagram.com/shubham.kharde.patil?cplk=MTNpeDdnM2lkaThpOQ==" target="_blank" class="text-warning text-decoration-none"><i class="bi bi-instagram me-1"></i> Instagram Profile</a></li>
                     </ul>
                 </div>
                 <div class="col-md-4 mb-4">
                     <h6 class="text-white fw-bold">Contact Us</h6>
                     <p class="small text-muted mb-1"><i class="bi bi-geo-alt me-2"></i>Pune, Maharashtra, India</p>
+                    <p class="small text-muted mb-1"><i class="bi bi-telephone me-2"></i>+91 9552365787</p>
                     <p class="small text-muted"><i class="bi bi-envelope me-2"></i>support@farmconnect.com</p>
                 </div>
             </div>
             <hr class="border-secondary">
             <div class="text-center small text-muted">
-                &copy; {{ current_year }} FarmConnect Inc. All rights reserved.
+                &copy; {{ current_year }} FarmConnect Inc. Managed by Shubham Kharde Patil. All rights reserved.
             </div>
         </div>
     </footer>
@@ -437,18 +414,13 @@ BASE_LAYOUT = """
 """
 
 def render_page(content_html, **kwargs):
-    full_html = BASE_LAYOUT.replace("<!-- CONTENT_PLACEHOLDER -->", content_html)
-    return render_template_string(full_html, current_year=datetime.now().year, **kwargs)
-
-# ------------------------------------------------------------------------------
-# ROUTES & CONTROLLERS
-# ------------------------------------------------------------------------------
+    template = BASE_LAYOUT.replace("{% block content %}{% endblock %}", content_html)
+    return render_template_string(template, current_year=datetime.now().year, **kwargs)
 
 @app.route("/")
 def home():
     with db() as con:
         farmers = con.execute("SELECT * FROM farmers ORDER BY id DESC LIMIT 3").fetchall()
-        
         fc_res = con.execute("SELECT COUNT(*) FROM farmers").fetchone()
         farmer_count = fc_res[list(fc_res.keys())[0]] if fc_res else 0
         
@@ -461,22 +433,21 @@ def home():
     content = """
     <section class="hero-section text-center">
         <div class="container">
-            <h1 class="display-4 fw-bold mb-3">Experience Authentic Farming & Agritourism</h1>
-            <p class="lead mb-4 opacity-90">Visit progressive farms, learn modern agricultural technologies, and experience nature firsthand.</p>
+            <h1 class="display-4 fw-bold mb-3">Experience Pomegranate & Grapes Agritourism</h1>
+            <p class="lead mb-4 opacity-90">Visit progressive farms, learn modern Pomegranate & Grapes cultivation, and experience nature firsthand.</p>
             <div class="d-flex justify-content-center gap-3">
-                <a href=""" + f"\"{url_for('farmers')}\"" + """ class="btn btn-agri-primary btn-lg px-4"><i class="bi bi-search me-2"></i>Book Farm Visit</a>
-                <a href=""" + f"\"{url_for('guidance')}\"" + """ class="btn btn-outline-light btn-lg px-4 rounded-3"><i class="bi bi-book me-2"></i>Crop Guidance</a>
+                <a href="{{ url_for('farmers') }}" class="btn btn-agri-primary btn-lg px-4"><i class="bi bi-search me-2"></i>Book Farm Visit</a>
+                <a href="{{ url_for('guidance') }}" class="btn btn-outline-light btn-lg px-4 rounded-3"><i class="bi bi-book me-2"></i>Crop Guidance</a>
             </div>
         </div>
     </section>
 
     <div class="container my-5">
         {% if session.get('role') == 'admin' %}
-        <!-- ADMIN DASHBOARD QUICK CONTROL WIDGET ON HOMEPAGE -->
         <div class="card card-custom p-4 mb-5 border border-warning border-2 bg-light">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="fw-bold text-success mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Admin Dashboard Quick Access</h4>
-                <a href=""" + f"\"{url_for('admin')}\"" + """ class="btn btn-agri-primary btn-sm"><i class="bi bi-gear-fill me-1"></i>Open Admin Panel</a>
+                <a href="{{ url_for('admin') }}" class="btn btn-agri-primary btn-sm"><i class="bi bi-gear-fill me-1"></i>Open Admin Panel</a>
             </div>
             <div class="row g-3">
                 <div class="col-md-4">
@@ -524,10 +495,10 @@ def home():
 
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h3 class="fw-bold mb-0 text-success"><i class="bi bi-star-fill text-warning me-2"></i>Featured Farmers</h3>
-                <p class="text-muted small">Explore top-rated farms and progressive agricultural practices</p>
+                <h3 class="fw-bold mb-0 text-success"><i class="bi bi-star-fill text-warning me-2"></i>Featured Pomegranate & Grapes Farmers</h3>
+                <p class="text-muted small">Explore top-rated orchards and professional fruit farming practices</p>
             </div>
-            <a href=""" + f"\"{url_for('farmers')}\"" + """ class="btn btn-outline-success rounded-pill px-4">View All &rarr;</a>
+            <a href="{{ url_for('farmers') }}" class="btn btn-outline-success rounded-pill px-4">View All &rarr;</a>
         </div>
 
         <div class="row g-4">
@@ -540,6 +511,7 @@ def home():
                             <span class="fw-bold text-success">₹{{ farmer.fee }}/visit</span>
                         </div>
                         <h5 class="card-title fw-bold mb-1">{{ farmer.name }}</h5>
+                        <p class="text-muted small mb-2"><i class="bi bi-rulers me-1"></i>Farm Area: <strong>{{ farmer.acres }} Acres</strong></p>
                         <p class="text-muted small mb-3"><i class="bi bi-award me-1"></i>Experience: {{ farmer.experience }} Years</p>
                         <p class="card-text text-secondary small mb-3"><strong>Key Crops:</strong> {{ farmer.crops }}</p>
                         <div class="pt-3 border-top">
@@ -604,7 +576,7 @@ def login():
                         <button type="submit" class="btn btn-agri-primary w-100 py-2 fs-6">Login</button>
                     </form>
                     <div class="text-center mt-4">
-                        <p class="small text-muted">Don't have an account? <a href=""" + f"\"{url_for('register')}\"" + """ class="text-success fw-bold text-decoration-none">Register Now</a></p>
+                        <p class="small text-muted">Don't have an account? <a href="{{ url_for('register') }}" class="text-success fw-bold text-decoration-none">Register Now</a></p>
                     </div>
                 </div>
             </div>
@@ -625,6 +597,7 @@ def register():
         village = request.form.get("village", "").strip()
         district = request.form.get("district", "").strip()
         crops = request.form.get("crops", "").strip()
+        acres = request.form.get("acres", 0)
         experience = request.form.get("experience", 0)
         fee = request.form.get("fee", 0)
         bio = request.form.get("bio", "").strip()
@@ -657,9 +630,9 @@ def register():
 
                 if role == "farmer" and user_id:
                     con.execute("""
-                        INSERT INTO farmers (user_id, name, phone, village, district, crops, experience, fee, bio, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (user_id, name, phone, village, district, crops, experience, fee, bio, datetime.now().isoformat(timespec="minutes")))
+                        INSERT INTO farmers (user_id, name, phone, village, district, crops, acres, experience, fee, bio, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (user_id, name, phone, village, district, crops, acres, experience, fee, bio, datetime.now().isoformat(timespec="minutes")))
 
             flash("Registration successful! Please login to your account.", "success")
             return redirect(url_for("login"))
@@ -674,7 +647,7 @@ def register():
                     <div class="text-center mb-4">
                         <i class="bi bi-person-plus-fill display-4 text-success"></i>
                         <h3 class="fw-bold mt-2">Create an Account</h3>
-                        <p class="text-muted small">Join FarmConnect as a Visitor or Progressive Farmer</p>
+                        <p class="text-muted small">Join FarmConnect as a Visitor or Pomegranate & Grapes Farmer</p>
                     </div>
 
                     <form method="POST">
@@ -722,21 +695,25 @@ def register():
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Main Crops *</label>
-                                <input type="text" name="crops" class="form-control" placeholder="e.g. Onion, Sugarcane, Tomato">
+                                <input type="text" name="crops" class="form-control" placeholder="e.g. Pomegranate, Grapes">
                             </div>
                             <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Farming Experience (Years)</label>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Farm Acres *</label>
+                                    <input type="number" step="0.1" name="acres" class="form-control" placeholder="e.g. 5.5" value="1">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Experience (Years)</label>
                                     <input type="number" name="experience" class="form-control" value="0">
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Consultation / Visit Fee (₹)</label>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold">Visit Fee (₹)</label>
                                     <input type="number" name="fee" class="form-control" value="0">
                                 </div>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label fw-semibold">Farm Description (Bio)</label>
-                                <textarea name="bio" class="form-control" rows="2" placeholder="Briefly describe your farm, techniques, or tourism attraction..."></textarea>
+                                <textarea name="bio" class="form-control" rows="2" placeholder="Briefly describe your Pomegranate/Grapes orchard, techniques, etc..."></textarea>
                             </div>
                         </div>
 
@@ -780,11 +757,11 @@ def farmers():
     <div class="container my-5">
         <div class="row align-items-center mb-4">
             <div class="col-md-6">
-                <h2 class="fw-bold text-success mb-1"><i class="bi bi-people-fill me-2"></i>Registered Farmers</h2>
-                <p class="text-muted">Find progressive farmers for farm visits and agritourism</p>
+                <h2 class="fw-bold text-success mb-1"><i class="bi bi-people-fill me-2"></i>Registered Pomegranate & Grapes Farmers</h2>
+                <p class="text-muted">Find progressive orchard owners for farm visits and agritourism</p>
             </div>
             <div class="col-md-6">
-                <form method="GET" action=""" + f"\"{url_for('farmers')}\"" + """ class="d-flex gap-2">
+                <form method="GET" action="{{ url_for('farmers') }}" class="d-flex gap-2">
                     <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search by name, village, district, or crop...">
                     <button type="submit" class="btn btn-agri-primary"><i class="bi bi-search"></i></button>
                 </form>
@@ -801,6 +778,7 @@ def farmers():
                             <span class="fw-bold text-success">₹{{ farmer.fee }} / visit</span>
                         </div>
                         <h5 class="fw-bold mb-1">{{ farmer.name }}</h5>
+                        <p class="text-muted small mb-1"><i class="bi bi-rulers me-1"></i>Farm Area: <strong>{{ farmer.acres }} Acres</strong></p>
                         <p class="text-muted small mb-2"><i class="bi bi-award me-1"></i>Experience: {{ farmer.experience }} Years</p>
                         <p class="small text-secondary mb-3"><strong>Crops:</strong> {{ farmer.crops }}</p>
                         {% if farmer.bio %}
@@ -859,7 +837,7 @@ def book(farmer_id):
                     
                     <div class="bg-light p-3 rounded-3 mb-4">
                         <h5 class="fw-bold text-dark mb-1">{{ farmer.name }}</h5>
-                        <p class="text-muted small mb-0"><i class="bi bi-geo-alt me-1"></i>{{ farmer.village }}, {{ farmer.district }} | <strong>Fee:</strong> ₹{{ farmer.fee }}</p>
+                        <p class="text-muted small mb-0"><i class="bi bi-geo-alt me-1"></i>{{ farmer.village }}, {{ farmer.district }} | <strong>Acres:</strong> {{ farmer.acres }} | <strong>Fee:</strong> ₹{{ farmer.fee }}</p>
                     </div>
 
                     <form method="POST">
@@ -907,11 +885,11 @@ def guidance():
         <div class="row align-items-center mb-4">
             <div class="col-md-6">
                 <h2 class="fw-bold text-success mb-1"><i class="bi bi-book-half me-2"></i>Crop Advisory & Guidance</h2>
-                <p class="text-muted">Expert advice on crop care, pest management, and modern techniques</p>
+                <p class="text-muted">Expert advice on Pomegranate, Grapes, and general crop care</p>
             </div>
             <div class="col-md-6">
-                <form method="GET" action=""" + f"\"{url_for('guidance')}\"" + """ class="d-flex gap-2">
-                    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search crop or topic (e.g., Tomato, Cotton)...">
+                <form method="GET" action="{{ url_for('guidance') }}" class="d-flex gap-2">
+                    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search crop or topic (e.g., Pomegranate, Grapes)...">
                     <button type="submit" class="btn btn-agri-primary"><i class="bi bi-search"></i></button>
                 </form>
             </div>
@@ -946,20 +924,20 @@ def about():
             <div class="col-md-10">
                 <div class="card card-custom p-4 p-md-5">
                     <h2 class="fw-bold text-success mb-3"><i class="bi bi-info-circle me-2"></i>About FarmConnect</h2>
-                    <p class="lead text-secondary">FarmConnect is a modern digital platform designed to connect farmers, agricultural researchers, and tourists directly.</p>
+                    <p class="lead text-secondary">FarmConnect is a modern digital platform designed to connect progressive Pomegranate & Grapes farmers, agricultural researchers, and tourists directly.</p>
                     <hr class="my-4">
                     <div class="row g-4">
                         <div class="col-md-6">
                             <h5 class="fw-bold text-dark"><i class="bi bi-bullseye text-success me-2"></i>Our Mission</h5>
-                            <p class="text-muted">Empowering rural farmers by highlighting their innovation and giving tourists an authentic, educational agritourism experience.</p>
+                            <p class="text-muted">Empowering orchard owners and rural farmers by highlighting their innovation in horticulture and giving visitors an authentic, educational agritourism experience.</p>
                         </div>
                         <div class="col-md-6">
                             <h5 class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-2"></i>Key Features</h5>
                             <ul class="text-muted">
-                                <li>Direct farm visits and real-world learning</li>
+                                <li>Specialized Pomegranate and Grapes farming guides</li>
+                                <li>Direct orchard visits and hands-on learning</li>
                                 <li>Transparent booking system</li>
-                                <li>Modern crop advisories and technology guidance</li>
-                                <li>User-friendly and secure platform</li>
+                                <li>Managed under Shubham Kharde Patil</li>
                             </ul>
                         </div>
                     </div>
@@ -994,6 +972,7 @@ def farmer_dashboard():
                     <h6 class="text-muted fw-bold">Your Profile</h6>
                     <h4 class="fw-bold text-dark mb-1">{{ farmer.name }}</h4>
                     <p class="small text-muted mb-0"><i class="bi bi-geo-alt"></i> {{ farmer.village }}, {{ farmer.district }}</p>
+                    <p class="small text-muted mb-0"><i class="bi bi-rulers"></i> Farm Area: {{ farmer.acres }} Acres</p>
                     <p class="small text-muted mb-0"><i class="bi bi-journal-text"></i> Crops: {{ farmer.crops }}</p>
                 </div>
             </div>
@@ -1102,7 +1081,7 @@ def visitor_dashboard():
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center text-muted py-4">You have not booked any farm visits yet. <a href=""" + f"\"{url_for('farmers')}\"" + """>Search Farmers</a>.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-4">You have not booked any farm visits yet. <a href="{{ url_for('farmers') }}">Search Farmers</a>.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -1127,13 +1106,43 @@ def admin():
 
     content = """
     <div class="container my-5">
-        <h2 class="fw-bold text-success mb-4"><i class="bi bi-shield-lock me-2"></i>Admin Panel Control</h2>
+        <div class="p-4 bg-dark text-white rounded-4 shadow-lg mb-4 d-flex justify-content-between align-items-center">
+            <div>
+                <span class="badge bg-warning text-dark px-3 py-2 fw-bold mb-2">SYSTEM CONTROL CENTER</span>
+                <h2 class="fw-bold mb-0"><i class="bi bi-shield-lock-fill me-2 text-warning"></i>Admin Master Console (Shubham Kharde Patil)</h2>
+            </div>
+            <span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i>System Online</span>
+        </div>
 
-        <h4 class="fw-bold text-dark mb-3">All System Bookings</h4>
-        <div class="card card-custom p-3 mb-5">
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-white">
+                    <i class="bi bi-people display-5 text-primary mb-2"></i>
+                    <h6 class="text-muted fw-bold text-uppercase">Total Users</h6>
+                    <h2 class="fw-bold text-dark mb-0">{{ users|length }}</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-white">
+                    <i class="bi bi-tree display-5 text-success mb-2"></i>
+                    <h6 class="text-muted fw-bold text-uppercase">Registered Farmers</h6>
+                    <h2 class="fw-bold text-dark mb-0">{{ farmers|length }}</h2>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-white">
+                    <i class="bi bi-calendar-check display-5 text-warning mb-2"></i>
+                    <h6 class="text-muted fw-bold text-uppercase">Total Bookings</h6>
+                    <h2 class="fw-bold text-dark mb-0">{{ bookings|length }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <h4 class="fw-bold text-dark mb-3"><i class="bi bi-list-check me-2"></i>All System Bookings</h4>
+        <div class="card border-0 shadow-sm rounded-4 p-3 mb-5 bg-white">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="table-dark">
                         <tr>
                             <th>#ID</th>
                             <th>Farmer</th>
@@ -1148,11 +1157,11 @@ def admin():
                         {% for b in bookings %}
                         <tr>
                             <td>#{{ b.id }}</td>
-                            <td class="fw-semibold">{{ b.farmer_name }}</td>
+                            <td class="fw-semibold text-success">{{ b.farmer_name }}</td>
                             <td>{{ b.visitor_name }}</td>
                             <td>{{ b.visitor_phone }}</td>
                             <td>{{ b.visit_date }}</td>
-                            <td><span class="badge bg-info text-dark">{{ b.status }}</span></td>
+                            <td><span class="badge bg-warning text-dark">{{ b.status }}</span></td>
                             <td>
                                 <form method="POST" action="/booking-status/{{ b.id }}" class="d-flex gap-1">
                                     <select name="status" class="form-select form-select-sm">
@@ -1161,7 +1170,7 @@ def admin():
                                         <option value="Completed" {% if b.status=='Completed' %}selected{% endif %}>Completed</option>
                                         <option value="Cancelled" {% if b.status=='Cancelled' %}selected{% endif %}>Cancelled</option>
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-agri-primary">Update</button>
+                                    <button type="submit" class="btn btn-sm btn-dark">Update</button>
                                 </form>
                             </td>
                         </tr>
@@ -1171,27 +1180,25 @@ def admin():
             </div>
         </div>
 
-        <h4 class="fw-bold text-dark mb-3">Registered Farmers List</h4>
-        <div class="card card-custom p-3">
+        <h4 class="fw-bold text-dark mb-3"><i class="bi bi-person-lines-fill me-2"></i>Registered Users & Farmers</h4>
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-white">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="table-secondary">
                         <tr>
                             <th>Name</th>
+                            <th>Email</th>
                             <th>Phone</th>
-                            <th>Location</th>
-                            <th>Crops</th>
-                            <th>Fee</th>
+                            <th>Role</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for f in farmers %}
+                        {% for u in users %}
                         <tr>
-                            <td class="fw-semibold">{{ f.name }}</td>
-                            <td>{{ f.phone }}</td>
-                            <td>{{ f.village }}, {{ f.district }}</td>
-                            <td>{{ f.crops }}</td>
-                            <td>₹{{ f.fee }}</td>
+                            <td class="fw-semibold">{{ u.name }}</td>
+                            <td>{{ u.email }}</td>
+                            <td>{{ u.phone }}</td>
+                            <td><span class="badge bg-{{ 'danger' if u.role=='admin' else ('success' if u.role=='farmer' else 'info') }}">{{ u.role }}</span></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -1204,7 +1211,7 @@ def admin():
 
 @app.route("/booking-status/<int:booking_id>", methods=["POST"])
 @login_required
-def booking_status(booking_id):
+def booking_session(booking_id):
     status = request.form.get("status", "Pending")
     if status not in ("Pending", "Accepted", "Completed", "Cancelled"):
         status = "Pending"
